@@ -1,30 +1,61 @@
-import { Transaction,SystemProgram,Connection,Keypair,LAMPORTS_PER_SOL,sendAndConfirmTransaction,PublicKey } from "@solana/web3.js";
-import wallet from './dev-wallet.json';
+import {
+  Transaction,
+  SystemProgram,
+  Connection,
+  Keypair,
+  sendAndConfirmTransaction,
+  PublicKey,
+} from "@solana/web3.js";
+import wallet from "./dev-wallet.json";
 
-const from= Keypair.fromSecretKey(new Uint8Array(wallet));
+const from = Keypair.fromSecretKey(new Uint8Array(wallet));
 
 const to = new PublicKey("2GMrcLY1vrjr4274GsX4dwU7GgRgWSE9piAYWpYPd9jn");
 
-const connection= new Connection("https://api.devnet.solana.com");
+const connection = new Connection("https://api.devnet.solana.com");
 
-(async()=>{
-    try {
-        const transaction= new Transaction().add(
-            SystemProgram.transfer({
-                fromPubkey:from.publicKey,
-                toPubkey:to,
-                lamports:LAMPORTS_PER_SOL/10,
-            })
-        );
-        
-        transaction.recentBlockhash= (await connection.getLatestBlockhash('confirmed')).blockhash;
+(async () => {
+  try {
+    const balance = await connection.getBalance(from.publicKey);
 
-        const signature= await sendAndConfirmTransaction(connection,transaction,[from]);
+    const transaction = new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: from.publicKey,
+        toPubkey: to,
+        lamports: balance,
+      })
+    );
 
-        console.log(`Sucess! Check out your TX here:
+    transaction.recentBlockhash = (
+      await connection.getLatestBlockhash("confirmed")
+    ).blockhash;
+    transaction.feePayer = from.publicKey;
+
+    const fee =
+      (
+        await connection.getFeeForMessage(
+          transaction.compileMessage(),
+          "confirmed"
+        )
+      ).value || 0;
+
+    transaction.instructions.pop();
+
+    transaction.add(
+      SystemProgram.transfer({
+        fromPubkey: from.publicKey,
+        toPubkey: to,
+        lamports: balance - fee,
+      })
+    );
+
+    const signature = await sendAndConfirmTransaction(connection, transaction, [
+      from,
+    ]);
+
+    console.log(`Sucess!🙌 Check out your TX here:
             https://explorer.solana.com/tx/${signature}?cluster=devnet`);
-        
-    } catch (e) {
-        console.error("Something's off I can feel it: "+e);
-    }
+  } catch (e) {
+    console.error("Something's off I can feel it: " + e);
+  }
 })();
